@@ -45,34 +45,38 @@ DECIMATION = 1 # Waveform decimation for avoid lag.
 ZOOM_FACTOR = 8 # Zoom for slicing waveform and avoid waveform incontinuous point. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
 ZOOM_FACTOR_DISP = 2 # Zoom for avoid waveform incontinuous point. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
 ZOOM_FACTOR_DISP_2 = 1 # Horizontal zoom level of waveform.
-WINDOW_LEN = 512 # Waveform length for input of max correration point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
-WINDOW_DECIMATION = WINDOW_LEN//128 # Waveform decimation for input of max correration point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
-FINAL_SMOOTHING_FACTOR = 1.2 # Factor of time-domain final smoothing, may causes incorrect waveforms in some situations (ex. chiptunes). Recommended value is 1.0 ~ 1.5.
+WINDOW_LEN = 256 # Waveform length for input of max correration point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
+WINDOW_DECIMATION = WINDOW_LEN//256 # Waveform decimation for input of max correration point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
+FINAL_SMOOTHING_FACTOR = 1.1 # Factor of time-domain final smoothing, may causes incorrect waveforms in some situations (ex. chiptunes). 1.0 equals to disabled. Recommended value is 1.0 ~ 1.5.
 ADVANCED_TRIGGERING = True # Enables advanced triggering, MASSIVELY RECOMMENDED IN NORMAL USE CASES!
 DISABLE_TRIGGERING = False # WARNING! Disables all of triggering, for debugging only.
 ENBALE_LOWPASS_FILTER = False # Enables Butterworth Low-Pass Filter for avoid noise sensation.
-F_CUTOFF = 0.1 # The cutoff frequency of Butterworth LPF.
+F_CUTOFF = 0.05 # The cutoff frequency of Butterworth LPF.
 FILTER_ORDER = 8 # The numbers of order of Butterworth LPF.
 PREVIEW_FILTERED_WAVEFORM = False # Show low-pass filtered waveform instead of unfiltered waveform.
-AGC_DECAY_FACTOR = 1.005 # Auto Gain Control factor decay rate, normally 1.00 ~ 1.05
-CORR_WEIGHT_FACTOR = 10.0 # How important absolute position between center to fragments of correration candicates to evaluation of triggering score?
+AGC_DECAY_FACTOR = 1.02 # Auto Gain Control factor decay rate, normally 1.00 ~ 1.05
+AGC_TARGET_GAIN = 0.6 # Target amplitude for auto gain control.
+CORR_WEIGHT_FACTOR = 5 # How important absolute position between center to fragments of correration candicates to evaluation of triggering score?
 FINAL_OFFSET_CORRECTION = False # Offsets waveform by max position of waveform. Causes smoothless frames in some situations, not recommended.
-OFFSET_AS_CORR_OFFSET = False # Recommended. Evaluate max correration point as final correction offset.
-CORRERATE_CANDICATION_THRESHOLD = 0.05 # How long can far away from the maximum value possible to cosidered as correration candicates?
-DEBUG_VIEW = False # For debugging only. Enables debug view that shows triggering status and more.
+OFFSET_AS_CORR_OFFSET = True # Recommended. Evaluate max correration point as final correction offset.
+CORRERATE_CANDICATION_THRESHOLD = 0.07 # How long can far away from the maximum value possible to cosidered as correration candicates?
+MINIMUM_MAX_VALUE = 32 # Minimum value of max value of waveform.
+DEBUG_VIEW = True # For debugging only. Enables debug view that shows triggering status and more.
 SHOW_FPS = True # Show Frame rate.
 LINE_THICKNESS = 2 # Waveform line thickness. 
-ENABLE_FULLSCREEN = True # Enables exclusive fullscreen.
+LINE_INTERPOLATION = False # Waveform line interpolation method. 
+ENABLE_FULLSCREEN = False # Enables exclusive fullscreen.
 ENABLE_VSYNC = True # Enables VSync, makes frames more smoother. But it also can causes lags when insufficient performance.
 ENABLE_WAVE_OFFSET_BY_FRAME_RING_COUNT = True # Enables waveform offset by time for smoother waveforms.
+MAX_CORRERATION_CANDICATIONS = 256 # Max count of candication of calculation of correration score.
 
 window = signal.windows.blackman(CHUNK)
 screen = pygame.display.set_mode(
     (WIDTH, HEIGHT),
     (
-        SRCALPHA | HWSURFACE | DOUBLEBUF | RESIZABLE | SCALED | FULLSCREEN
+        SRCALPHA | HWSURFACE | DOUBLEBUF | RESIZABLE | SCALED | (FULLSCREEN
         if ENABLE_FULLSCREEN
-        else 0
+        else 0)
     ),
     vsync=ENABLE_VSYNC,
 )
@@ -113,6 +117,7 @@ old_final = np.zeros(CHUNK // ZOOM_FACTOR_DISP)
 filt = signal.butter(
     FILTER_ORDER, F_CUTOFF, btype="low", analog=False, output="sos", fs=None
 )
+captured = 0
 
 ########################################################################################
 # Audio callback function that grabs waveform fragments, and transfer into ring buffer.#
@@ -120,7 +125,7 @@ filt = signal.butter(
 
 
 def callback(wavedata, frame_count, time_info, status):
-    global wave, wave_orig, start, theta, mx
+    global wave, wave_orig, start, theta, mx, captured
 
     if wavedata != None:
         input = wavedata
@@ -136,19 +141,14 @@ def callback(wavedata, frame_count, time_info, status):
 
     # ndarrayからリストに変換
     # Pythonネイティブのint型にして扱いやすくする
-    left = [np.array(i) for i in ndarrayl]
-    right = [np.array(i) for i in ndarrayr]
 
     # mx2=max(a)
     # print(mx2)
 
     # 試しに0番目に入っているものを表示してみる
 
-    l2 = [int(s) for s in left]
-    r2 = [int(s) for s in right]
-
-    wavel = np.array(l2)
-    waver = np.array(r2)
+    wavel = np.array(ndarrayl).astype(int)
+    waver = np.array(ndarrayr).astype(int)
 
     # rmsl = np.sqrt(np.mean([elm * elm for elm in wavel]))
     # rmsr = np.sqrt(np.mean([elm * elm for elm in waver]))
@@ -171,7 +171,7 @@ def callback(wavedata, frame_count, time_info, status):
     # except ValueError:
     # snr = 0
     rx = 0
-    _mx = max([max(wave_orig), abs(min(wave_orig)), 32])
+    _mx = max([max(wave_orig), abs(min(wave_orig)), MINIMUM_MAX_VALUE])
     if _mx > mx:
         mx = _mx
     else:
@@ -180,7 +180,8 @@ def callback(wavedata, frame_count, time_info, status):
     # fft = np.fft.fft(wave*window, n=CHUNK)
     # fft = np.log10(np.fft.fft(wave*window, n=CHUNK))*10
 
-    wave = (0.01 + wave_orig / 32768 * (32768 / (mx)) / (1)) + 0 * 2.0
+    wave = (0.0 + wave_orig / 32768 * (32768 / (mx)) / (1)) + 0 * 2.0
+    captured = time.time()
     return (None, pyaudio.paContinue)
 
 
@@ -206,21 +207,25 @@ clock = pygame.time.Clock()
 
 
 def render():
-    global theta, old_frag, final, old_final, filt, wave, sample_frame
+    global theta, old_frag, final, old_final, filt, wave, sample_frame, captured
     screen.fill((0, 0, 0))
 
     if not auto:
         # rx = (np.where(np.logical_and(wave < threshold,np.diff(wave,append=1) > 0))[0][0])
         # rx = (trigger(wave[CHUNK//2-CHUNK//ZOOM_FACTOR:CHUNK//2+CHUNK//ZOOM_FACTOR],CHUNK//2,np.average(wave)))+(CHUNK//2-CHUNK//ZOOM_FACTOR)
-
+        sample_frame = int((time.time() - captured) * RATE)
+        #print(sample_frame)
         # rx = np.argmax(wave)
-        wave = np.roll(
+        roll_offset = -((sample_frame
+            - (CHUNK // BUFFER_LEN // 2))
+            * int(ENABLE_WAVE_OFFSET_BY_FRAME_RING_COUNT))
+        #roll_offset = 0
+        shifted_wave = np.roll(
             wave,
-            -sample_frame
-            % (CHUNK // BUFFER_LEN)
-            * int(ENABLE_WAVE_OFFSET_BY_FRAME_RING_COUNT),
+            roll_offset
         )
-        cut_wave = wave[
+        #print(roll_offset)
+        cut_wave = shifted_wave[
             CHUNK // 2 - CHUNK // ZOOM_FACTOR : CHUNK // 2 + CHUNK // ZOOM_FACTOR
         ]
         if ENBALE_LOWPASS_FILTER:
@@ -244,10 +249,10 @@ def render():
                 >= np.max(cut_wave)
                 - (np.max(cut_wave) - np.min(cut_wave))
                 * CORRERATE_CANDICATION_THRESHOLD
-            )[0][:128]
+            )[0][:MAX_CORRERATION_CANDICATIONS]
             if old_frag is None:
                 old_frag = pad(
-                    wave[
+                    shifted_wave[
                         np.argmax(cut_wave)
                         + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)
                         - WINDOW_LEN // 2 : np.argmax(cut_wave)
@@ -260,7 +265,7 @@ def render():
                 try:
                     corr = np.correlate(
                         pad(
-                            wave[
+                            shifted_wave[
                                 i
                                 + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)
                                 - WINDOW_LEN // 2 : i
@@ -286,7 +291,7 @@ def render():
             # print(len(samples))
             rx = indices[peak]
             if (
-                np.max(cut_wave) - wave[rx + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)] > 0.2
+                np.max(cut_wave) - shifted_wave[rx + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)] > 0.2
                 or len(indices) < 1
             ):
                 # rx = int(np.argmax(cut_wave))
@@ -294,7 +299,7 @@ def render():
                 pass
             # print(np.argmax(samples),rx)
             old_frag = pad(
-                wave[
+                shifted_wave[
                     rx
                     + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)
                     - WINDOW_LEN // 2 : rx
@@ -312,6 +317,7 @@ def render():
             if DEBUG_VIEW:
                 points = []
                 points2 = []
+                maxval = max([abs(max(raw_samples[peak])), abs(min(raw_samples[peak])),0.01])
                 for ji in range(len(old_frag) - 1):
                     i = int(ji)
                     i2 = int(ji) + 1
@@ -323,11 +329,11 @@ def render():
                     try:
                         point1 = (
                             i + WINDOW_LEN // WINDOW_DECIMATION,
-                            32 - raw_samples[peak][i] * 2,
+                            32 - raw_samples[peak][i] / maxval * 32,
                         )
                         point2 = (
                             i2 + WINDOW_LEN // WINDOW_DECIMATION,
-                            32 - raw_samples[peak][i2] * 2,
+                            32 - raw_samples[peak][i2] / maxval * 32,
                         )
                     except IndexError:
                         point1 = (i + WINDOW_LEN // WINDOW_DECIMATION, 0)
@@ -408,8 +414,8 @@ def render():
         # progress(-1*rx,width*height,"Synced:{}".format(rx))
     # text=str(-1*rx)
     if PREVIEW_FILTERED_WAVEFORM:
-        wave = signal.sosfiltfilt(filt, wave)
-    _final = wave
+        shifted_wave = signal.sosfiltfilt(filt, shifted_wave)
+    _final = shifted_wave
     if DISABLE_TRIGGERING:
         rx = CHUNK
     # final = np.roll(final,int(rx))
@@ -448,7 +454,7 @@ def render():
             )
             * -HEIGHT
             / 2
-            * 0.9
+            * AGC_TARGET_GAIN
             + HEIGHT / 2,
         )
         point2 = (
@@ -457,7 +463,7 @@ def render():
             (
                 final[
                     np.clip(
-                        int((i2) * (CHUNK / WIDTH / ZOOM_FACTOR_DISP)),
+                        int((i2 if LINE_INTERPOLATION else i) * (CHUNK / WIDTH / ZOOM_FACTOR_DISP)),
                         0,
                         CHUNK // ZOOM_FACTOR_DISP - 1,
                     )
@@ -465,7 +471,7 @@ def render():
             )
             * -HEIGHT
             / 2
-            * 0.9
+            * AGC_TARGET_GAIN
             + HEIGHT / 2,
         )
         points.append(point1)
@@ -501,9 +507,9 @@ def render():
             p.terminate()
             print("Stop Streaming")  # Pygameの終了(画面閉じられる)
             sys.exit()
-    sample_frame = int((time.time() - start) * RATE)
+    
 
-    clock.tick(120)
+    clock.tick(9999)
 
 
 if __name__ == "__main__":

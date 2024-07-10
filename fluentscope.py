@@ -19,6 +19,7 @@ import numpy as np
 from scipy import signal
 import time
 
+
 p = pyaudio.PyAudio()
 # set prams
 try:
@@ -47,28 +48,31 @@ ZOOM_FACTOR_DISP = 2 # Zoom for avoid waveform incontinuous point. For debugging
 ZOOM_FACTOR_DISP_2 = 1 # Horizontal zoom level of waveform.
 WINDOW_LEN = 256 # Waveform length for input of max correration point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
 WINDOW_DECIMATION = WINDOW_LEN//256 # Waveform decimation for input of max correration point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
-FINAL_SMOOTHING_FACTOR = 1.1 # Factor of time-domain final smoothing, may causes incorrect waveforms in some situations (ex. chiptunes). 1.0 equals to disabled. Recommended value is 1.0 ~ 1.5.
+FINAL_SMOOTHING_FACTOR = 1.3 # Factor of time-domain final smoothing, may causes incorrect waveforms in some situations (ex. chiptunes). 1.0 equals to disabled. Recommended value is 1.0 ~ 1.5.
 ADVANCED_TRIGGERING = True # Enables advanced triggering, MASSIVELY RECOMMENDED IN NORMAL USE CASES!
 DISABLE_TRIGGERING = False # WARNING! Disables all of triggering, for debugging only.
-ENBALE_LOWPASS_FILTER = False # Enables Butterworth Low-Pass Filter for avoid noise sensation.
-F_CUTOFF = 0.05 # The cutoff frequency of Butterworth LPF.
-FILTER_ORDER = 8 # The numbers of order of Butterworth LPF.
+ENBALE_LOWPASS_FILTER = True # Enables Butterworth Low-Pass Filter for avoid noise sensation.
+F_CUTOFF = 0.25 # The cutoff frequency of Butterworth LPF.
+FILTER_ORDER = 6 # The numbers of order of Butterworth LPF.
 PREVIEW_FILTERED_WAVEFORM = False # Show low-pass filtered waveform instead of unfiltered waveform.
-AGC_DECAY_FACTOR = 1.02 # Auto Gain Control factor decay rate, normally 1.00 ~ 1.05
-AGC_TARGET_GAIN = 0.6 # Target amplitude for auto gain control.
-CORR_WEIGHT_FACTOR = 5 # How important absolute position between center to fragments of correration candicates to evaluation of triggering score?
+AGC_DECAY_FACTOR = 1.01 # Auto Gain Control factor decay rate, normally 1.00 ~ 1.05
+AGC_TARGET_GAIN = 0.75 # Target amplitude for auto gain control.
+CORR_WEIGHT_FACTOR = 10.0 # How important absolute position between center to fragments of correration candicates to evaluation of triggering score?
 FINAL_OFFSET_CORRECTION = False # Offsets waveform by max position of waveform. Causes smoothless frames in some situations, not recommended.
 OFFSET_AS_CORR_OFFSET = True # Recommended. Evaluate max correration point as final correction offset.
-CORRERATE_CANDICATION_THRESHOLD = 0.07 # How long can far away from the maximum value possible to cosidered as correration candicates?
+ENABLE_ANOTHER_OFFSET_CORRECTION = True
+CORRERATE_CANDICATION_THRESHOLD = 0.05 # How long can far away from the maximum value possible to cosidered as correration candicates?
 MINIMUM_MAX_VALUE = 32 # Minimum value of max value of waveform.
 DEBUG_VIEW = True # For debugging only. Enables debug view that shows triggering status and more.
 SHOW_FPS = True # Show Frame rate.
 LINE_THICKNESS = 2 # Waveform line thickness. 
 LINE_INTERPOLATION = False # Waveform line interpolation method. 
+LINE_AA = False # Enables waveform line anti-aliasing. Supports thickness, but extremely slow!
 ENABLE_FULLSCREEN = False # Enables exclusive fullscreen.
 ENABLE_VSYNC = True # Enables VSync, makes frames more smoother. But it also can causes lags when insufficient performance.
 ENABLE_WAVE_OFFSET_BY_FRAME_RING_COUNT = True # Enables waveform offset by time for smoother waveforms.
 MAX_CORRERATION_CANDICATIONS = 256 # Max count of candication of calculation of correration score.
+ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD = 0.35 # How long can far away from the smoothed value before resetting value into current value?
 
 window = signal.windows.blackman(CHUNK)
 screen = pygame.display.set_mode(
@@ -118,6 +122,7 @@ filt = signal.butter(
     FILTER_ORDER, F_CUTOFF, btype="low", analog=False, output="sos", fs=None
 )
 captured = 0
+mx_old = 0
 
 ########################################################################################
 # Audio callback function that grabs waveform fragments, and transfer into ring buffer.#
@@ -176,11 +181,13 @@ def callback(wavedata, frame_count, time_info, status):
         mx = _mx
     else:
         mx /= AGC_DECAY_FACTOR
+    mx_old = mx
+    nmx = (mx+mx_old)/2
     # mx=8192
     # fft = np.fft.fft(wave*window, n=CHUNK)
     # fft = np.log10(np.fft.fft(wave*window, n=CHUNK))*10
 
-    wave = (0.0 + wave_orig / 32768 * (32768 / (mx)) / (1)) + 0 * 2.0
+    wave = (0.0 + wave_orig / 32768 * (32768 / (nmx)) / (1)) + 0 * 2.0
     captured = time.time()
     return (None, pyaudio.paContinue)
 
@@ -202,7 +209,6 @@ def pad(array, length):
     else:
         return array
 
-
 clock = pygame.time.Clock()
 
 
@@ -213,11 +219,11 @@ def render():
     if not auto:
         # rx = (np.where(np.logical_and(wave < threshold,np.diff(wave,append=1) > 0))[0][0])
         # rx = (trigger(wave[CHUNK//2-CHUNK//ZOOM_FACTOR:CHUNK//2+CHUNK//ZOOM_FACTOR],CHUNK//2,np.average(wave)))+(CHUNK//2-CHUNK//ZOOM_FACTOR)
-        sample_frame = int((time.time() - captured) * RATE)
+        sample_frame = int((time.time() - captured) * RATE) % CHUNK//BUFFER_LEN
         #print(sample_frame)
         # rx = np.argmax(wave)
         roll_offset = -((sample_frame
-            - (CHUNK // BUFFER_LEN // 2))
+            - int(CHUNK // BUFFER_LEN * 1))
             * int(ENABLE_WAVE_OFFSET_BY_FRAME_RING_COUNT))
         #roll_offset = 0
         shifted_wave = np.roll(
@@ -290,13 +296,6 @@ def render():
             peak = np.argmax(samples)
             # print(len(samples))
             rx = indices[peak]
-            if (
-                np.max(cut_wave) - shifted_wave[rx + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)] > 0.2
-                or len(indices) < 1
-            ):
-                # rx = int(np.argmax(cut_wave))
-                # print("fallback")
-                pass
             # print(np.argmax(samples),rx)
             old_frag = pad(
                 shifted_wave[
@@ -311,6 +310,14 @@ def render():
             if OFFSET_AS_CORR_OFFSET:
                 final_offset = samples_offset[peak]
             else:
+                final_offset = np.argmax(old_frag) - len(old_frag) // 2
+            if (
+                ( np.max(cut_wave) - shifted_wave[rx + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)] > CORRERATE_CANDICATION_THRESHOLD
+                or len(indices) < 1 )
+                and ENABLE_ANOTHER_OFFSET_CORRECTION
+            ):
+                # rx = int(np.argmax(cut_wave))
+                #print("fallback")
                 final_offset = np.argmax(old_frag) - len(old_frag) // 2
             if FINAL_OFFSET_CORRECTION:
                 rx = rx + final_offset * WINDOW_DECIMATION
@@ -407,7 +414,7 @@ def render():
         else:
             rx = int(np.argmax(cut_wave))
 
-        rx = rx + (CHUNK // 2 - CHUNK // ZOOM_FACTOR) + (CHUNK // ZOOM_FACTOR * 4)
+        rx = rx + (CHUNK - CHUNK // ZOOM_FACTOR)# + (CHUNK // ZOOM_FACTOR * 4)
         # rx = (CHUNK//2+trigger(wave,peak,np.average(wave))*-1)
         # wave=corr
         # print(rx)
@@ -426,6 +433,7 @@ def render():
         except IndexError:
             pass
     final += (final2 - final) / FINAL_SMOOTHING_FACTOR
+    final = np.where(np.abs(final2-final) > ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD, final2, final)
     # final = _final
     pygame.draw.line(screen, (64, 64, 64), (0, HEIGHT / 2), (WIDTH, HEIGHT / 2))
     pygame.draw.line(screen, (64, 64, 64), (WIDTH / 2, 0), (WIDTH / 2, HEIGHT))
@@ -478,8 +486,13 @@ def render():
         points.append(point2)
 
     # Draw lines
-    pygame.draw.lines(screen, (255, 255, 255), False, points, LINE_THICKNESS)
-
+    if LINE_AA:
+        for y in range(-LINE_THICKNESS//2,LINE_THICKNESS//2,1):
+            for x in range(-LINE_THICKNESS//2,LINE_THICKNESS//2,1):
+                pygame.draw.aalines(screen, (255, 255, 255), False, [[i[0]+x,i[1]+y] for i in points], LINE_THICKNESS)
+    else:
+        pygame.draw.lines(screen, (255, 255, 255), False, points, LINE_THICKNESS)
+    
     # fft2 = cv2.applyColorMap(cv2.resize(np.clip(np.sqrt(np.power(fft[0:sprproc.shape[0]].real,2) + np.power(fft[0:sprproc.shape[0]].imag,2)) * scale_value*5.12,0,255).astype(np.uint8),dsize=None,fx=1,fy=2,interpolation=FFTINTER),fftcolormap)
 
     # texttime = font16.render(f"{'{:.1f}'.format((end*1000)):>4}ms({'{:.0f}'.format((1/end)):>4}fps) OH:{'{:.1f}'.format((end*1000-(CHUNK/RATE*1000))):>5}ms ({(CHUNK/RATE)*1000:.1f}ms bufferT)", True, (255,255,255))

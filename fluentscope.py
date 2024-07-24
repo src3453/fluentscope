@@ -18,6 +18,7 @@ import pyaudio
 import numpy as np
 from scipy import signal
 import time
+import colorsys
 
 
 p = pyaudio.PyAudio()
@@ -55,26 +56,45 @@ ENBALE_LOWPASS_FILTER = True # Enables Butterworth Low-Pass Filter for avoid noi
 F_CUTOFF = 0.25 # The cutoff frequency of Butterworth LPF.
 FILTER_ORDER = 6 # The numbers of order of Butterworth LPF.
 PREVIEW_FILTERED_WAVEFORM = False # Show low-pass filtered waveform instead of unfiltered waveform.
-AGC_DECAY_FACTOR = 1.01 # Auto Gain Control factor decay rate, normally 1.00 ~ 1.05
+AGC_DECAY_FACTOR = 1.001 # Auto Gain Control factor decay rate, normally 1.00 ~ 1.05
 AGC_TARGET_GAIN = 0.75 # Target amplitude for auto gain control.
-CORR_WEIGHT_FACTOR = 10.0 # How important absolute position between center to fragments of correration candicates to evaluation of triggering score?
+USE_ANOTHER_AGC_METHOD = False # Uses simple smoothing instead of limiter-based smoothing. Not recommended in normal use cases because it may causes over level.
+CORR_WEIGHT_FACTOR = 5.0 # How important absolute position between center to fragments of correration candicates to evaluation of triggering score?
 FINAL_OFFSET_CORRECTION = False # Offsets waveform by max position of waveform. Causes smoothless frames in some situations, not recommended.
 OFFSET_AS_CORR_OFFSET = True # Recommended. Evaluate max correration point as final correction offset.
-ENABLE_ANOTHER_OFFSET_CORRECTION = True
+ENABLE_ANOTHER_OFFSET_CORRECTION = True # Not recommended in normal use cases.
 CORRERATE_CANDICATION_THRESHOLD = 0.05 # How long can far away from the maximum value possible to cosidered as correration candicates?
 MINIMUM_MAX_VALUE = 32 # Minimum value of max value of waveform.
 DEBUG_VIEW = True # For debugging only. Enables debug view that shows triggering status and more.
 SHOW_FPS = True # Show Frame rate.
-LINE_THICKNESS = 2 # Waveform line thickness. 
-LINE_INTERPOLATION = False # Waveform line interpolation method. 
+LINE_THICKNESS = 2# Waveform line thickness. 
+LINE_COLOR = (255,255,255)
+LINE_INTERPOLATION = True # Waveform line interpolation method. 
 LINE_AA = False # Enables waveform line anti-aliasing. Supports thickness, but extremely slow!
+LINE_AA_SCALE = 0.5
 ENABLE_FULLSCREEN = False # Enables exclusive fullscreen.
 ENABLE_VSYNC = True # Enables VSync, makes frames more smoother. But it also can causes lags when insufficient performance.
 ENABLE_WAVE_OFFSET_BY_FRAME_RING_COUNT = True # Enables waveform offset by time for smoother waveforms.
 MAX_CORRERATION_CANDICATIONS = 256 # Max count of candication of calculation of correration score.
-ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD = 0.35 # How long can far away from the smoothed value before resetting value into current value?
+ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD = 0.4 # How long can far away from the smoothed value before resetting value into current value?
 ENABLE_VOLUME_BAR = True
-VOLUME_BAR_SMOOTHING_FACTOR = 1.25
+VOLUME_BAR_SMOOTHING_FACTOR = 1.5
+ENABLE_DC_OFFSET_CORRECTION = False
+DC_OFFSET_CORRECTION_DECAY_FACTOR = 16.0
+DC_OFFSET_CORRECTION_DEADZONE = 0.05
+OFFSET_ZERO_LINE = True
+DRAW_ZERO_LINE = True
+DRAW_CENTER_LINE = True
+DRAW_V_SCALE_LINE = True
+DRAW_H_SCALE_LINE = True
+ENABLE_SCALE_LABEL = True
+SCALE_COUNT = 11
+ENABLE_PITCH_DETECTION = True
+PITCH_DETECTION_THRESHOLD = 10.0
+PITCH_SMOOTHING_FACTOR = 1.5
+PITCH_INDICATOR_MAX_FREQ = 1024
+CHANGE_LINE_COLOR_BY_PITCH = True
+DEBUG_VIEW_FFT = False
 
 window = signal.windows.blackman(CHUNK)
 screen = pygame.display.set_mode(
@@ -117,7 +137,9 @@ start = time.time()
 
 theta = 0
 mx = 0
+nmx = 0
 sample_frame = 0
+fftfreq = 0
 old_frag = None
 final = np.zeros(CHUNK // ZOOM_FACTOR_DISP)
 old_final = np.zeros(CHUNK // ZOOM_FACTOR_DISP)
@@ -126,6 +148,7 @@ filt = signal.butter(
 )
 captured = 0
 mx_old = 0
+dcoffset = 0
 
 ########################################################################################
 # Audio callback function that grabs waveform fragments, and transfer into ring buffer.#
@@ -133,7 +156,7 @@ mx_old = 0
 
 
 def callback(wavedata, frame_count, time_info, status):
-    global wave, wave_orig, start, theta, mx, captured, lvol, rvol, rlvol, rrvol
+    global wave, wave_orig, start, theta, mx, captured, lvol, rvol, rlvol, rrvol, dcoffset, nmx, fftfreq
 
     if wavedata != None:
         input = wavedata
@@ -181,17 +204,24 @@ def callback(wavedata, frame_count, time_info, status):
     # snr = 0
     rx = 0
     _mx = max([max(wave_orig), abs(min(wave_orig)), MINIMUM_MAX_VALUE])
-    if _mx > mx:
-        mx = _mx
+    if USE_ANOTHER_AGC_METHOD:
+      mx += (_mx-mx)*(AGC_DECAY_FACTOR-1)
     else:
-        mx /= AGC_DECAY_FACTOR
+      if _mx > mx:
+          mx = _mx
+      else:
+          mx /= AGC_DECAY_FACTOR
     mx_old = mx
     nmx = (mx+mx_old)/2
     # mx=8192
     # fft = np.fft.fft(wave*window, n=CHUNK)
     # fft = np.log10(np.fft.fft(wave*window, n=CHUNK))*10
-
     wave = (0.0 + wave_orig / 32768 * (32768 / (nmx)) / (1)) + 0 * 2.0
+    if ENABLE_DC_OFFSET_CORRECTION:
+      dcoffset += (np.mean(wave) - dcoffset) / DC_OFFSET_CORRECTION_DECAY_FACTOR
+      if np.abs(np.mean(wave)) < DC_OFFSET_CORRECTION_DEADZONE:
+        dcoffset = 0
+    wave -= dcoffset
     captured = time.time()
     return (None, pyaudio.paContinue)
 
@@ -217,11 +247,10 @@ clock = pygame.time.Clock()
 
 
 def render():
-    global theta, old_frag, final, old_final, filt, wave, sample_frame, captured, lvol, rvol
+    global theta, old_frag, final, old_final, filt, wave, sample_frame, captured, lvol, rvol, dcoffset, nmx, fftfreq
     screen.fill((0, 0, 0))
     lvol += (rlvol - lvol) / VOLUME_BAR_SMOOTHING_FACTOR
     rvol += (rrvol - rvol) / VOLUME_BAR_SMOOTHING_FACTOR
-
     if not auto:
         # rx = (np.where(np.logical_and(wave < threshold,np.diff(wave,append=1) > 0))[0][0])
         # rx = (trigger(wave[CHUNK//2-CHUNK//ZOOM_FACTOR:CHUNK//2+CHUNK//ZOOM_FACTOR],CHUNK//2,np.average(wave)))+(CHUNK//2-CHUNK//ZOOM_FACTOR)
@@ -441,11 +470,61 @@ def render():
     final += (final2 - final) / FINAL_SMOOTHING_FACTOR
     final = np.where(np.abs(final2-final) > ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD, final2, final)
     # final = _final
-    pygame.draw.line(screen, (64, 64, 64), (0, HEIGHT / 2), (WIDTH, HEIGHT / 2))
-    pygame.draw.line(screen, (64, 64, 64), (WIDTH / 2, 0), (WIDTH / 2, HEIGHT))
+    hloffset = 0
+    if OFFSET_ZERO_LINE:
+      hloffset = dcoffset * HEIGHT / 2 * AGC_TARGET_GAIN
+    if DRAW_ZERO_LINE:
+      pygame.draw.line(screen, (64, 64, 64), (0, HEIGHT / 2 + hloffset), (WIDTH, HEIGHT / 2 + hloffset))
+    if DRAW_CENTER_LINE:
+      pygame.draw.line(screen, (64, 64, 64), (WIDTH / 2, 0), (WIDTH / 2, HEIGHT))
+    if ENABLE_SCALE_LABEL:
+      font = pygame.font.SysFont("monospace", 12, bold=True)
+    if DRAW_V_SCALE_LINE:
+      for y in np.linspace(-2**int(np.log2(max(nmx,1)/32768*(1/AGC_TARGET_GAIN))-0.5),2**int(np.log2(max(nmx,1)/32768*(1/AGC_TARGET_GAIN))-0.5),int((SCALE_COUNT-1))+1,endpoint=True):
+        ry = (y*HEIGHT/2)*(32768/max(nmx,1))+HEIGHT/2
+        if abs(y*2) <= 1.0:
+          #print(ry)
+          pygame.draw.line(screen, (64, 64, 64), (WIDTH / 2 - WIDTH / 2 * 0.01, ry + hloffset), (WIDTH / 2 + WIDTH / 2 * 0.01, ry + hloffset))
+          if ENABLE_SCALE_LABEL and y != 0:
+            screen.blit(font.render(str(format(-y*2,"+0.3f")),True,(64,64,64)),(WIDTH / 2 + WIDTH / 2 * 0.015,ry + hloffset - 6))
+      for y in range(-1,1,2):
+        ry = (y*HEIGHT/2)*(32768/max(nmx,1))+HEIGHT/2
+        #print(ry)
+        pygame.draw.line(screen, (64, 64, 64), (WIDTH / 2 - WIDTH / 2 * 0.02, ry + hloffset), (WIDTH / 2 + WIDTH / 2 * 0.02, ry + hloffset))
+        if ENABLE_SCALE_LABEL and y != 0:
+            screen.blit(font.render(str(format(-y*2,"+0.3f")),True,(64,64,64)),(WIDTH / 2 + WIDTH / 2 * 0.015,ry + hloffset - 6))
+    if DRAW_H_SCALE_LINE:
+      pass
+      #for x in np.linspace(-2**int(np.log2(max(nmx,1)/32768*(1/AGC_TARGET_GAIN))-0.5),2**int(np.log2(max(nmx,1)/32768*(1/AGC_TARGET_GAIN))-0.5),int((SCALE_COUNT-1))+1,endpoint=True):
     if ENABLE_VOLUME_BAR:
         pygame.draw.rect(screen, (192, 192, 192), ((WIDTH / 2 - (WIDTH / 2 * lvol) + 1, HEIGHT-8, (WIDTH / 2 * lvol), 8)))
         pygame.draw.rect(screen, (192, 192, 192), ((WIDTH / 2 , HEIGHT-8, (WIDTH / 2 * rvol), 8)))
+    if ENABLE_PITCH_DETECTION:
+      fftd = np.fft.fft(shifted_wave*window).real
+      try:
+        rpeak,_ = signal.find_peaks(fftd,PITCH_DETECTION_THRESHOLD,PITCH_DETECTION_THRESHOLD,10)
+        peak = rpeak[0]
+      except IndexError:
+        peak = 0
+      #print(peak)
+      fftfreq += ((RATE*np.fft.fftfreq(len(fftd))[peak]/(PITCH_INDICATOR_MAX_FREQ/WIDTH))-fftfreq)/PITCH_SMOOTHING_FACTOR
+      #print(fftfreq)
+      if peak != 0:
+        pygame.draw.rect(screen, (192, 192, 192), ((fftfreq, HEIGHT-16, 10, 8)))
+    if DEBUG_VIEW_FFT:
+        points = []
+        maxval = peak
+        for ji in range(WIDTH//2 - 1):
+            i = int(ji)
+            i2 = int(ji) + 1
+            point1 = (i, HEIGHT - fftd[i] * 1)
+            point2 = (i2, HEIGHT - fftd[i2] * 1)
+            points.append(point1)
+            points.append(point2)
+        # Draw lines
+        pygame.draw.lines(screen, (128, 128, 128), False, points, 2)
+        for i in rpeak:
+            pygame.draw.line(screen, (255, 0, 255), (i,HEIGHT),(i,HEIGHT-16), 2)
     indices = np.linspace(
         int(WIDTH / 2 - WIDTH / ZOOM_FACTOR_DISP_2 / 2),
         int(WIDTH / 2 + WIDTH / ZOOM_FACTOR_DISP_2 / 2),
@@ -493,20 +572,27 @@ def render():
         )
         points.append(point1)
         points.append(point2)
-
+    if CHANGE_LINE_COLOR_BY_PITCH and peak != 0:
+      try:
+        line_color = [int(min(max(i*255,0),255)) for i in colorsys.hsv_to_rgb(np.log2(fftfreq)/4, 0.4, 1)]
+      except ValueError:
+        line_color = LINE_COLOR
+    else:
+      line_color = LINE_COLOR
+    #print(line_color)
     # Draw lines
     if LINE_AA:
         for y in range(-LINE_THICKNESS//2,LINE_THICKNESS//2,1):
             for x in range(-LINE_THICKNESS//2,LINE_THICKNESS//2,1):
-                pygame.draw.aalines(screen, (255, 255, 255), False, [[i[0]+x,i[1]+y] for i in points], LINE_THICKNESS)
+                pygame.draw.aalines(screen, line_color, False, [[i[0]+x*LINE_AA_SCALE,i[1]+y*LINE_AA_SCALE] for i in points])
     else:
-        pygame.draw.lines(screen, (255, 255, 255), False, points, LINE_THICKNESS)
+        pygame.draw.lines(screen, line_color, False, points, LINE_THICKNESS)
     
     # fft2 = cv2.applyColorMap(cv2.resize(np.clip(np.sqrt(np.power(fft[0:sprproc.shape[0]].real,2) + np.power(fft[0:sprproc.shape[0]].imag,2)) * scale_value*5.12,0,255).astype(np.uint8),dsize=None,fx=1,fy=2,interpolation=FFTINTER),fftcolormap)
 
     # texttime = font16.render(f"{'{:.1f}'.format((end*1000)):>4}ms({'{:.0f}'.format((1/end)):>4}fps) OH:{'{:.1f}'.format((end*1000-(CHUNK/RATE*1000))):>5}ms ({(CHUNK/RATE)*1000:.1f}ms bufferT)", True, (255,255,255))
     if SHOW_FPS:
-        font = pygame.font.Font(None, 15)
+        font = pygame.font.SysFont("monospace", 12, bold=True)
         # font30 = pygame.font.Font(r"cv2c\sound\16x10.ttf", 20)
         fps = font.render(str(int(clock.get_fps())), 0, (255, 255, 255))
         screen.blit(fps, (0, 0))

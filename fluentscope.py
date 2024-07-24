@@ -73,6 +73,8 @@ ENABLE_VSYNC = True # Enables VSync, makes frames more smoother. But it also can
 ENABLE_WAVE_OFFSET_BY_FRAME_RING_COUNT = True # Enables waveform offset by time for smoother waveforms.
 MAX_CORRERATION_CANDICATIONS = 256 # Max count of candication of calculation of correration score.
 ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD = 0.35 # How long can far away from the smoothed value before resetting value into current value?
+ENABLE_VOLUME_BAR = True
+VOLUME_BAR_SMOOTHING_FACTOR = 1.25
 
 window = signal.windows.blackman(CHUNK)
 screen = pygame.display.set_mode(
@@ -106,6 +108,7 @@ fftmax = 20000
 fftmin = 0
 r3p = 0
 colormapi = 8
+lvol, rvol, rlvol, rrvol = 0,0,0,0
 font16 = pygame.font.Font(None, 8)
 
 wave = np.zeros(CHUNK * 1)
@@ -130,7 +133,7 @@ mx_old = 0
 
 
 def callback(wavedata, frame_count, time_info, status):
-    global wave, wave_orig, start, theta, mx, captured
+    global wave, wave_orig, start, theta, mx, captured, lvol, rvol, rlvol, rrvol
 
     if wavedata != None:
         input = wavedata
@@ -155,10 +158,11 @@ def callback(wavedata, frame_count, time_info, status):
     wavel = np.array(ndarrayl).astype(int)
     waver = np.array(ndarrayr).astype(int)
 
-    # rmsl = np.sqrt(np.mean([elm * elm for elm in wavel]))
-    # rmsr = np.sqrt(np.mean([elm * elm for elm in waver]))
+    #rmsl = np.sqrt(np.mean(np.power(wavel,2)))
+    #rmsr = np.sqrt(np.mean(np.power(waver,2)))
 
-    # db = to_db(rms)
+    rlvol = float(np.max(np.abs(wavel)))/32768
+    rrvol = float(np.max(np.abs(waver)))/32768
     # val=(rmsr-rmsl)/(rmsr+rmsl)*90
     # x += (val-old)/2
     # old=x
@@ -213,8 +217,10 @@ clock = pygame.time.Clock()
 
 
 def render():
-    global theta, old_frag, final, old_final, filt, wave, sample_frame, captured
+    global theta, old_frag, final, old_final, filt, wave, sample_frame, captured, lvol, rvol
     screen.fill((0, 0, 0))
+    lvol += (rlvol - lvol) / VOLUME_BAR_SMOOTHING_FACTOR
+    rvol += (rrvol - rvol) / VOLUME_BAR_SMOOTHING_FACTOR
 
     if not auto:
         # rx = (np.where(np.logical_and(wave < threshold,np.diff(wave,append=1) > 0))[0][0])
@@ -437,6 +443,9 @@ def render():
     # final = _final
     pygame.draw.line(screen, (64, 64, 64), (0, HEIGHT / 2), (WIDTH, HEIGHT / 2))
     pygame.draw.line(screen, (64, 64, 64), (WIDTH / 2, 0), (WIDTH / 2, HEIGHT))
+    if ENABLE_VOLUME_BAR:
+        pygame.draw.rect(screen, (192, 192, 192), ((WIDTH / 2 - (WIDTH / 2 * lvol) + 1, HEIGHT-8, (WIDTH / 2 * lvol), 8)))
+        pygame.draw.rect(screen, (192, 192, 192), ((WIDTH / 2 , HEIGHT-8, (WIDTH / 2 * rvol), 8)))
     indices = np.linspace(
         int(WIDTH / 2 - WIDTH / ZOOM_FACTOR_DISP_2 / 2),
         int(WIDTH / 2 + WIDTH / ZOOM_FACTOR_DISP_2 / 2),
@@ -536,5 +545,12 @@ if __name__ == "__main__":
         stream_callback=callback,
         input_device_index=INPUT_DEVICE_INDEX,
     )
+    print("""     ______              __  ____                 
+    / __/ /_ _____ ___  / /_/ __/______  ___  ___ 
+   / _// / // / -_) _ \/ __/\ \/ __/ _ \/ _ \/ -_)
+  /_/ /_/\_,_/\__/_//_/\__/___/\__/\___/ .__/\__/ 
+                                      /_/         
+  ~ An oscilloscope that makes listening waveform more fun ~
+  (c) 2024 src3453 Released under The MIT License.""")
     while True:
         render()

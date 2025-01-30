@@ -49,7 +49,7 @@ except IndexError:
 
 pygame.init() # init Pygame
 
-VERSION = "24.09.10.1" # Program Version, in YY.MM.DD.Incremental format. PLEASE DON'T CHANGE!
+VERSION = "24.11.24.1" # Program Version, in YY.MM.DD.Incremental format. PLEASE DON'T CHANGE!
 
 ###############################################################################################
 # CONFIGURATION CONSTANTS                                                                     #
@@ -67,13 +67,14 @@ DECIMATION = 1 # Waveform decimation for avoid lag.
 ZOOM_FACTOR = 8 # Zoom for slicing waveform and avoid waveform incontinuous point. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
 ZOOM_FACTOR_DISP = 2 # Zoom for avoid waveform incontinuous point. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
 ZOOM_FACTOR_DISP_2 = 1 # Horizontal zoom level of waveform.
-WINDOW_LEN = 256 # Waveform length for input of max correlation point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
+WINDOW_LEN = 1024 # Waveform length for input of max correlation point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
 WINDOW_DECIMATION = WINDOW_LEN//256 # Waveform decimation for input of max correlation point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
-FINAL_SMOOTHING_FACTOR = 1.4 # Factor of time-domain final smoothing, may causes incorrect waveforms in some situations (ex. chiptunes). 1.0 equals to disabled. Recommended value is 1.0 ~ 1.5.
+FINAL_SMOOTHING_FACTOR = 1.0 # Factor of time-domain final smoothing, may causes incorrect waveforms in some situations (ex. chiptunes). 1.0 equals to disabled. Recommended value is 1.0 ~ 1.5.
 ADVANCED_TRIGGERING = True # Enables advanced triggering, MASSIVELY RECOMMENDED IN NORMAL USE CASES!
+ADVANCED_TRIGGERING_2 = True
 DISABLE_TRIGGERING = False # WARNING! Disables all of triggering, for debugging only.
 ENBALE_LOWPASS_FILTER = True # Enables Butterworth Low-Pass Filter for avoid noise sensation.
-F_CUTOFF = 0.125 # The cutoff frequency of Butterworth LPF.
+F_CUTOFF = 0.2 # The cutoff frequency of Butterworth LPF.
 FILTER_ORDER = 8 # The numbers of order of Butterworth LPF.
 PREVIEW_FILTERED_WAVEFORM = False # Show low-pass filtered waveform instead of unfiltered waveform.
 AGC_DECAY_FACTOR = 1.005 # Auto Gain Control factor decay rate, normally 1.00 ~ 1.05
@@ -95,10 +96,10 @@ LINE_AA_SCALE = 0.5
 ENABLE_FULLSCREEN = False # Enables exclusive fullscreen.
 ENABLE_VSYNC = True # Enables VSync, makes frames more smoother. But it also can causes lags when insufficient performance.
 ENABLE_WAVE_OFFSET_BY_FRAME_RING_COUNT = True # Enables waveform offset by time for smoother waveforms.
-MAX_correlation_CANDICATIONS = 256 # Max count of candication of calculation of correlation score.
+MAX_CORRELATION_CANDICATIONS = 256 # Max count of candication of calculation of correlation score.
 ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD = 0.4 # How long can far away from the smoothed value before resetting value into current value?
 ENABLE_VOLUME_BAR = True
-VOLUME_BAR_SMOOTHING_FACTOR = 1.5
+VOLUME_BAR_SMOOTHING_FACTOR = 1.2
 ENABLE_DC_OFFSET_CORRECTION = False
 DC_OFFSET_CORRECTION_DECAY_FACTOR = 16.0
 DC_OFFSET_CORRECTION_DEADZONE = 0.05
@@ -116,6 +117,10 @@ PITCH_INDICATOR_MAX_FREQ = 1024
 CHANGE_LINE_COLOR_BY_PITCH = True
 DEBUG_VIEW_FFT = True
 STEREO_MODE = False
+ENABLE_FORCE_CROSS_SECTION = True
+
+for i in range(2,len(sys.argv),1):
+    exec(sys.argv[i])
 
 window = signal.windows.blackman(CHUNK)
 screen = pygame.display.set_mode(
@@ -337,7 +342,7 @@ def render():
                 >= np.max(cut_wave)
                 - (np.max(cut_wave) - np.min(cut_wave))
                 * CORRERATE_CANDICATION_THRESHOLD
-            )[0][:MAX_correlation_CANDICATIONS]
+            )[0][:MAX_CORRELATION_CANDICATIONS]
             if old_frag is None:
                 old_frag = pad(
                     shifted_wave[
@@ -495,8 +500,17 @@ def render():
             #rx = np.argmax(np.diff(wave[0:CHUNK//ZOOM_FACTOR]))"""
         else:
             rx = int(np.argmax(cut_wave))
-
+        if ENABLE_FORCE_CROSS_SECTION:
+            rx_offset = 0
+            for x in range(len(cut_wave)*2):
+                index = int(rx+rx_offset)%len(cut_wave)
+                if np.sign(cut_wave[index])-np.sign(cut_wave[index-1]) >= 1:
+                    break
+                rx_offset -= 0.5
+                rx_offset * -1
+            rx = rx+int(rx_offset)
         rx = rx + (CHUNK - CHUNK // ZOOM_FACTOR)# + (CHUNK // ZOOM_FACTOR * 4)
+        
         # rx = (CHUNK//2+trigger(wave,peak,np.average(wave))*-1)
         # wave=corr
         # print(rx)

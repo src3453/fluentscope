@@ -49,7 +49,7 @@ except IndexError:
 
 pygame.init() # init Pygame
 
-VERSION = "24.11.24.1" # Program Version, in YY.MM.DD.Incremental format. PLEASE DON'T CHANGE!
+VERSION = "25.02.19.0" # Program Version, in YY.MM.DD.Incremental format. PLEASE DON'T CHANGE!
 
 ###############################################################################################
 # CONFIGURATION CONSTANTS                                                                     #
@@ -63,47 +63,47 @@ CHANNELS = 2 # Mic input count, normally 2.
 RATE = 48000 # Mic sample rate, normally 44100 or 48000.
 WIDTH = 960 # Screen width.
 HEIGHT = 540 # Screen height.
-DECIMATION = 1 # Waveform decimation for avoid lag.     
-ZOOM_FACTOR = 8 # Zoom for slicing waveform and avoid waveform incontinuous point. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
-ZOOM_FACTOR_DISP = 2 # Zoom for avoid waveform incontinuous point. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
+DECIMATION = 1 # Waveform decimation to avoid lag.
+ZOOM_FACTOR = 8 # Zoom for slicing waveform and avoid waveform discontinuous point. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
+ZOOM_FACTOR_DISP = 2 # Zoom to avoid waveform discontinuous point. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
 ZOOM_FACTOR_DISP_2 = 1 # Horizontal zoom level of waveform.
 WINDOW_LEN = 1024 # Waveform length for input of max correlation point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
-WINDOW_DECIMATION = WINDOW_LEN//256 # Waveform decimation for input of max correlation point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
-FINAL_SMOOTHING_FACTOR = 1.0 # Factor of time-domain final smoothing, may causes incorrect waveforms in some situations (ex. chiptunes). 1.0 equals to disabled. Recommended value is 1.0 ~ 1.5.
+WINDOW_DECIMATION = WINDOW_LEN // 256 # Waveform decimation for input of max correlation point searching algorithm. For debugging only, PLEASE DON'T CHANGE IN NORMAL USE!
+FINAL_SMOOTHING_FACTOR = 1.0 # Factor of time-domain final smoothing, may cause incorrect waveforms in some situations (ex. chiptunes). 1.0 equals to disabled. Recommended value is 1.0 ~ 1.5.
 ADVANCED_TRIGGERING = True # Enables advanced triggering, MASSIVELY RECOMMENDED IN NORMAL USE CASES!
-ADVANCED_TRIGGERING_2 = True
-DISABLE_TRIGGERING = False # WARNING! Disables all of triggering, for debugging only.
-ENBALE_LOWPASS_FILTER = True # Enables Butterworth Low-Pass Filter for avoid noise sensation.
-F_CUTOFF = 0.2 # The cutoff frequency of Butterworth LPF.
-FILTER_ORDER = 8 # The numbers of order of Butterworth LPF.
+ADVANCED_TRIGGERING_2 = True # Enables advanced triggering, but uses another method.
+DISABLE_TRIGGERING = False # WARNING! Disables all triggering, for debugging only.
+ENABLE_LOWPASS_FILTER = False # Enables Butterworth Low-Pass Filter to avoid noise sensation.
+F_CUTOFF = 0.05 # The cutoff frequency of Butterworth LPF.
+FILTER_ORDER = 8 # The number of orders of Butterworth LPF.
 PREVIEW_FILTERED_WAVEFORM = False # Show low-pass filtered waveform instead of unfiltered waveform.
 AGC_DECAY_FACTOR = 1.005 # Auto Gain Control factor decay rate, normally 1.00 ~ 1.05
 AGC_TARGET_GAIN = 0.75 # Target amplitude for auto gain control.
-USE_ANOTHER_AGC_METHOD = False # Uses simple smoothing instead of limiter-based smoothing. Not recommended in normal use cases because it may causes over level.
-CORR_WEIGHT_FACTOR = 5.0 # How important absolute position between center to fragments of correlation candidates to evaluation of triggering score?
-FINAL_OFFSET_CORRECTION = False # Offsets waveform by max position of waveform. Causes smoothless frames in some situations, not recommended.
+USE_ANOTHER_AGC_METHOD = False # Uses simple smoothing instead of limiter-based smoothing. Not recommended in normal use cases because it may cause over level.
+CORR_WEIGHT_FACTOR = 5.0 # How important is the absolute position between center to fragments of correlation candidates to evaluation of triggering score?
+FINAL_OFFSET_CORRECTION = False # Offsets waveform by max position of waveform. Causes smooth frames in some situations, not recommended.
 OFFSET_AS_CORR_OFFSET = True # Recommended. Evaluate max correlation point as final correction offset.
 ENABLE_ANOTHER_OFFSET_CORRECTION = True # Not recommended in normal use cases.
-CORRERATE_CANDICATION_THRESHOLD = 0.1 # How long can far away from the maximum value possible to cosidered as correlation candidates?
+CORRELATE_CANDIDATION_THRESHOLD = 0.1 # How far can it be from the maximum value possible to be considered as correlation candidates?
 MINIMUM_MAX_VALUE = 32 # Minimum value of max value of waveform.
 DEBUG_VIEW = True # For debugging only. Enables debug view that shows triggering status and more.
 SHOW_FPS = True # Show Frame rate.
-LINE_THICKNESS = 2 # Waveform line thickness. 
-LINE_COLOR = (255,255,255)
-LINE_INTERPOLATION = False # Waveform line interpolation method. 
+LINE_THICKNESS = 2 # Waveform line thickness.
+LINE_COLOR = (255,255,255) # Color of the waveform line.
+LINE_INTERPOLATION = False # Waveform line interpolation method.
 LINE_AA = False # Enables waveform line anti-aliasing. Supports thickness, but extremely slow!
-LINE_AA_SCALE = 0.5
+LINE_AA_SCALE = 0.5 # Scale for anti-aliasing.
 ENABLE_FULLSCREEN = False # Enables exclusive fullscreen.
-ENABLE_VSYNC = True # Enables VSync, makes frames more smoother. But it also can causes lags when insufficient performance.
+ENABLE_VSYNC = True # Enables VSync, makes frames more smoother. But it also can cause lags when insufficient performance.
 ENABLE_WAVE_OFFSET_BY_FRAME_RING_COUNT = True # Enables waveform offset by time for smoother waveforms.
-MAX_CORRELATION_CANDICATIONS = 256 # Max count of candication of calculation of correlation score.
-ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD = 0.4 # How long can far away from the smoothed value before resetting value into current value?
-ENABLE_VOLUME_BAR = True
-VOLUME_BAR_SMOOTHING_FACTOR = 1.2
-ENABLE_DC_OFFSET_CORRECTION = False
-DC_OFFSET_CORRECTION_DECAY_FACTOR = 16.0
-DC_OFFSET_CORRECTION_DEADZONE = 0.05
-OFFSET_ZERO_LINE = True
+MAX_CORRELATION_CANDICATIONS = 256 # Max count of candidates for calculation of correlation score.
+ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD = 0.4 # How far away from the smoothed value before resetting value into the current value.
+ENABLE_VOLUME_BAR = True # Enables volume bar display.
+VOLUME_BAR_SMOOTHING_FACTOR = 1.2 # Smoothing factor for volume bar.
+ENABLE_DC_OFFSET_CORRECTION = False # Enables DC offset correction.
+DC_OFFSET_CORRECTION_DECAY_FACTOR = 16.0 # Decay factor for DC offset correction.
+DC_OFFSET_CORRECTION_DEADZONE = 0.05 # Deadzone for DC offset correction.
+OFFSET_ZERO_LINE = True # Enables zero line offset.
 DRAW_ZERO_LINE = True
 DRAW_CENTER_LINE = True
 DRAW_V_SCALE_LINE = False
@@ -118,6 +118,7 @@ CHANGE_LINE_COLOR_BY_PITCH = True
 DEBUG_VIEW_FFT = True
 STEREO_MODE = False
 ENABLE_FORCE_CROSS_SECTION = True
+FORCE_CROSS_SECTION_LOWPASS_FILTER = True
 
 for i in range(2,len(sys.argv),1):
     exec(sys.argv[i])
@@ -157,10 +158,12 @@ r3p = 0
 colormapi = 8
 lvol, rvol, rlvol, rrvol = 0,0,0,0
 font16 = pygame.font.Font(None, 8)
-
+_wave = np.zeros(CHUNK * 1)
 wave = np.zeros(CHUNK * 1)
 wave_l = np.zeros(CHUNK * 1)
 wave_r = np.zeros(CHUNK * 1)
+_wave_l = np.zeros(CHUNK * 1)
+_wave_r = np.zeros(CHUNK * 1)
 wave_orig = np.zeros(CHUNK * 1)
 wave_orig_l = np.zeros(CHUNK * 1)
 wave_orig_r = np.zeros(CHUNK * 1)
@@ -189,7 +192,7 @@ dcoffset = 0
 
 
 def callback(wavedata, frame_count, time_info, status):
-    global wave, wave_orig, start, theta, mx, captured, lvol, rvol, rlvol, rrvol, dcoffset, nmx, fftfreq, wave_l, wave_r, wave_orig_l, wave_orig_r
+    global _wave, wave_orig, start, theta, mx, captured, lvol, rvol, rlvol, rrvol, dcoffset, nmx, fftfreq, wave_l, wave_r, wave_orig_l, wave_orig_r
 
     if wavedata != None:
         input = wavedata
@@ -211,14 +214,14 @@ def callback(wavedata, frame_count, time_info, status):
 
     # 試しに0番目に入っているものを表示してみる
 
-    wavel = np.array(ndarrayl).astype(int)
-    waver = np.array(ndarrayr).astype(int)
+    _wavel = np.array(ndarrayl).astype(int)
+    _waver = np.array(ndarrayr).astype(int)
 
     #rmsl = np.sqrt(np.mean(np.power(wavel,2)))
     #rmsr = np.sqrt(np.mean(np.power(waver,2)))
 
-    rlvol = float(np.max(np.abs(wavel)))/32768
-    rrvol = float(np.max(np.abs(waver)))/32768
+    rlvol = float(np.max(np.abs(_wavel)))/32768
+    rrvol = float(np.max(np.abs(_waver)))/32768
     # val=(rmsr-rmsl)/(rmsr+rmsl)*90
     # x += (val-old)/2
     # old=x
@@ -226,12 +229,12 @@ def callback(wavedata, frame_count, time_info, status):
 
     # r = x * np.pi/180
     # r2 = (rmsr-rmsl)/(rmsr+rmsl)*90 * np.pi/180
-    wave_orig = np.append(wave_orig, (wavel + waver) / 2)
+    wave_orig = np.append(wave_orig, (_wavel + _waver) / 2)
     wave_orig = np.delete(wave_orig, np.s_[0 : CHUNK // BUFFER_LEN])
     if STEREO_MODE:
-        wave_orig_l = np.append(wave_orig_l, wavel)
+        wave_orig_l = np.append(wave_orig_l, _wavel)
         wave_orig_l = np.delete(wave_orig_l, np.s_[0 : CHUNK // BUFFER_LEN])
-        wave_orig_r = np.append(wave_orig_r, waver)
+        wave_orig_r = np.append(wave_orig_r, _waver)
         wave_orig_r = np.delete(wave_orig_r, np.s_[0 : CHUNK // BUFFER_LEN])
     # print((wave_orig))
     # try:
@@ -256,15 +259,15 @@ def callback(wavedata, frame_count, time_info, status):
     # mx=8192
     # fft = np.fft.fft(wave*window, n=CHUNK)
     # fft = np.log10(np.fft.fft(wave*window, n=CHUNK))*10
-    wave = (0.0 + wave_orig / 32768 * (32768 / (nmx)) / (1)) + 0 * 2.0
+    _wave = (0.0 + wave_orig / 32768 * (32768 / (nmx)) / (1)) + 0 * 2.0
     if STEREO_MODE:
-        wave_l = (0.0 + wave_orig_l / 32768 * (32768 / (nmx)) / (1)) + 0 * 2.0
-        wave_r = (0.0 + wave_orig_r / 32768 * (32768 / (nmx)) / (1)) + 0 * 2.0
+        _wave_l = (0.0 + wave_orig_l / 32768 * (32768 / (nmx)) / (1)) + 0 * 2.0
+        _wave_r = (0.0 + wave_orig_r / 32768 * (32768 / (nmx)) / (1)) + 0 * 2.0
     if ENABLE_DC_OFFSET_CORRECTION:
-      dcoffset += (np.mean(wave) - dcoffset) / DC_OFFSET_CORRECTION_DECAY_FACTOR
-      if np.abs(np.mean(wave)) < DC_OFFSET_CORRECTION_DEADZONE:
+      dcoffset += (np.mean(_wave) - dcoffset) / DC_OFFSET_CORRECTION_DECAY_FACTOR
+      if np.abs(np.mean(_wave)) < DC_OFFSET_CORRECTION_DEADZONE:
         dcoffset = 0
-    wave -= dcoffset
+    _wave -= dcoffset
     captured = time.time()
     return (None, pyaudio.paContinue)
 
@@ -291,6 +294,7 @@ clock = pygame.time.Clock()
 
 def render():
     global theta, old_frag, final, old_final, filt, wave, sample_frame, captured, lvol, rvol, dcoffset, nmx, fftfreq, final_l, final_r, finalv
+    wave, wave_l, wave_r = _wave.copy(), _wave_l.copy(), _wave_r.copy()
     screen.fill((0, 0, 0))
     lvol += (rlvol - lvol) / VOLUME_BAR_SMOOTHING_FACTOR
     rvol += (rrvol - rvol) / VOLUME_BAR_SMOOTHING_FACTOR
@@ -321,7 +325,7 @@ def render():
         cut_wave = shifted_wave[
             CHUNK // 2 - CHUNK // ZOOM_FACTOR : CHUNK // 2 + CHUNK // ZOOM_FACTOR
         ]
-        if ENBALE_LOWPASS_FILTER:
+        if ENABLE_LOWPASS_FILTER:
             cut_wave = signal.sosfiltfilt(filt, cut_wave)
         # cut_wave = (cut_wave + np.roll(cut_wave,1)) / 2
         # rx = int(np.argmax(cut_wave))
@@ -341,14 +345,14 @@ def render():
                 cut_wave
                 >= np.max(cut_wave)
                 - (np.max(cut_wave) - np.min(cut_wave))
-                * CORRERATE_CANDICATION_THRESHOLD
+                * CORRELATE_CANDIDATION_THRESHOLD
             )[0][:MAX_CORRELATION_CANDICATIONS]
             if old_frag is None:
                 old_frag = pad(
                     shifted_wave[
-                        np.argmax(cut_wave)
+                        np.argmax(np.diff(cut_wave))
                         + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)
-                        - WINDOW_LEN // 2 : np.argmax(cut_wave)
+                        - WINDOW_LEN // 2 : np.argmax(np.diff(cut_wave))
                         + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)
                         + WINDOW_LEN // 2 : WINDOW_DECIMATION
                     ],
@@ -397,15 +401,15 @@ def render():
             if OFFSET_AS_CORR_OFFSET:
                 final_offset = samples_offset[peak]
             else:
-                final_offset = np.argmax(old_frag) - len(old_frag) // 2
+                final_offset = np.argmax(np.diff(old_frag)) - len(old_frag) // 2
             if (
-                ( np.max(cut_wave) - shifted_wave[rx + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)] > CORRERATE_CANDICATION_THRESHOLD
+                ( np.max(cut_wave) - shifted_wave[rx + (CHUNK // 2 - CHUNK // ZOOM_FACTOR)] > CORRELATE_CANDIDATION_THRESHOLD
                 or len(indices) < 1 )
                 and ENABLE_ANOTHER_OFFSET_CORRECTION
             ):
                 # rx = int(np.argmax(cut_wave))
                 #print("fallback")
-                final_offset = np.argmax(old_frag) - len(old_frag) // 2
+                final_offset = np.argmax(np.diff(old_frag)) - len(old_frag) // 2
             if FINAL_OFFSET_CORRECTION:
                 rx = rx + final_offset * WINDOW_DECIMATION
             if DEBUG_VIEW:
@@ -499,12 +503,16 @@ def render():
             #print(np.where(cut_wave > np.max(cut_wave)-0.01)[0])
             #rx = np.argmax(np.diff(wave[0:CHUNK//ZOOM_FACTOR]))"""
         else:
-            rx = int(np.argmax(cut_wave))
+            #rx = int(np.argmax(cut_wave))
+            rx = int(np.argmax(np.diff(cut_wave)))+1
         if ENABLE_FORCE_CROSS_SECTION:
             rx_offset = 0
+            avg = 0#np.average(cut_wave)
+            if FORCE_CROSS_SECTION_LOWPASS_FILTER:
+                cut_wave = signal.sosfiltfilt(filt, cut_wave)
             for x in range(len(cut_wave)*2):
                 index = int(rx+rx_offset)%len(cut_wave)
-                if np.sign(cut_wave[index])-np.sign(cut_wave[index-1]) >= 1:
+                if np.sign(cut_wave[index]-avg)-np.sign(cut_wave[index-1]-avg) >= 1:
                     break
                 rx_offset -= 0.5
                 rx_offset * -1
@@ -563,14 +571,14 @@ def render():
                 pass
         adaptive_score = np.mean(np.abs(final2 - final))
         if adaptive_score > ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD:
-            pygame.draw.rect(screen, (255, 0, 0), ((0 , 0, adaptive_score*WIDTH, 8)))
-            pygame.draw.rect(screen, (128, 0, 0), ((ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD*WIDTH , 0, 2, 8)))
+            """pygame.draw.rect(screen, (255, 0, 0), ((0 , 0, adaptive_score*WIDTH, 8)))
+            pygame.draw.rect(screen, (128, 0, 0), ((ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD*WIDTH , 0, 2, 8)))"""
             #print(adaptive_score,"reset")
             final = final2
             
         else:
-            pygame.draw.rect(screen, (192, 192, 192), ((0 , 0, adaptive_score*WIDTH, 8)))
-            pygame.draw.rect(screen, (128, 128, 128), ((ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD*WIDTH , 0, 2, 8)))
+            """pygame.draw.rect(screen, (192, 192, 192), ((0 , 0, adaptive_score*WIDTH, 8)))
+            pygame.draw.rect(screen, (128, 128, 128), ((ADAPTIVE_SMOOTHING_IGNORE_THRESHOLD*WIDTH , 0, 2, 8)))"""
             #print(adaptive_score)
             final += (final2 - final) / FINAL_SMOOTHING_FACTOR
             
